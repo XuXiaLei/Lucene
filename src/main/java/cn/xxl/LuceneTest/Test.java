@@ -6,26 +6,29 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Date;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Version;
-import org.apache.pdfbox.pdfparser.PDFParser;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -35,167 +38,164 @@ import org.wltea.analyzer.lucene.IKAnalyzer;
 
 public class Test {
 
-	public void TextIndex() throws Exception{
-		//µÚÒ»²½£ºµ¼Èëjar°ü
-		//µÚ¶ş²½£º´´½¨indexWriter¶ÔÏó
-			//Ö¸¶¨directory¶ÔÏó
-			//Ö¸¶¨·ÖÎöÆ÷analyzer
-		//µÚÈı²½£º´´½¨document¶ÔÏó
-		//µÚËÄ²½£º´´½¨field¶ÔÏó£¬²¢½«ÆäÌí¼Óµ½document
-		//µÚÎå²½£ºÊ¹ÓÃindexWriterĞ´Èëdocumentµ½Ë÷Òı¿â
-		//µÚÁù²½£º¹Ø±ÕindexWriter
-		Directory directory = FSDirectory.open(new File("D:\\tmp\\·¨ÂÉ·¨¹æ\\indexDirectory"));
-		
-		Analyzer analyzer = new StandardAnalyzer();
-		//Analyzer analyzer2 = new IKAnalyzer();
+	public static void TextIndex() throws Exception{
+		Directory directory = FSDirectory.open(new File("D:\\tmp\\æ³•å¾‹æ³•è§„\\indexDirectory"));
+		//Analyzer analyzer = new AnsjAnalyzer(AnsjAnalyzer.TYPE.index_ansj);
+		//Analyzer analyzer = new StandardAnalyzer();
+		Analyzer analyzer = new IKAnalyzer();
 		IndexWriterConfig config = new IndexWriterConfig(Version.LATEST, analyzer);	
 		IndexWriter indexWriter = new IndexWriter(directory,config);
-		Document document = new Document();
-		File f = new File("D:\\tmp\\·¨ÂÉ·¨¹æ\\·¨ÂÉ·¨¹æ");
+		
+		File f = new File("D:\\tmp\\æ³•å¾‹æ³•è§„\\æ³•å¾‹æ³•è§„");
 		File[] files = f.listFiles();
 		for(File file : files) {
-			//TextField£º·Ö´Ê
-			//LongField£ºlongĞÍ
-			//StoredField:²»·Ö´Ê£¬Ö»´æ´¢
-			//ÎÄ¼şÃû×Ö
+			
+			Document document = new Document();
+			// æ–‡ä»¶åç§°
 			String file_name = file.getName();
-			Field fileNameField = new TextField("file_name", file_name, Store.YES);
-			//ÎÄ¼ş´óĞ¡
+			// æ–‡ä»¶ç±»å‹
+			String fileType = file_name.substring(file_name.lastIndexOf(".") + 1,
+                    file_name.length()).toLowerCase();
+			//æ–‡ä»¶å¤§å°
 			long file_size = FileUtils.sizeOf(file);
-			Field fileSizeField = new LongField("file_size", file_size, Store.YES);
-			//ÎÄ¼şÂ·¾¶
+			//æ–‡ä»¶è·¯å¾„
 			String file_path = file.getPath();
+			//Field
+			Field fileNameField = new TextField("file_name", file_name, Store.YES);
+			
+			Field fileSizeField = new LongField("file_size", file_size, Store.YES);
+			
 			Field filePathField = new StoredField("file_path", file_path);
-			//ÎÄ¼şÄÚÈİ
-			String file_content = FileUtils.readFileToString(file, "UTF-8");
-			Field fileContentField = new TextField("file_content", file_content, Store.YES);
+			
 			document.add(fileNameField);
 			document.add(fileSizeField);
 			document.add(filePathField);
-			document.add(fileContentField);
-			indexWriter.addDocument(document);
-		}
-		indexWriter.close();
-	}
-	public static void main(String[] args) throws IOException {
-        // ±£´æwordÎÄ¼şµÄÂ·¾¶
-        String dataDirectory = "D:\\tmp\\·¨ÂÉ·¨¹æ\\·¨ÂÉ·¨¹æ";
-        // ±£´æLuceneË÷ÒıÎÄ¼şµÄÂ·¾¶
-        String indexDirectory = "D:\\tmp\\·¨ÂÉ·¨¹æ\\indexDirectory";
-        // ´´½¨Directory¶ÔÏó £¬Ò²¾ÍÊÇ·Ö´ÊÆ÷¶ÔÏó
-        Directory directory = new SimpleFSDirectory(new File(indexDirectory));
-        // ´´½¨Ò»¸ö¼òµ¥µÄ·Ö´ÊÆ÷,¿ÉÒÔ¶ÔÊı¾İ½øĞĞ·Ö´Ê
-        Analyzer analyzer = new StandardAnalyzer();
-        IndexWriterConfig config = new IndexWriterConfig(Version.LATEST, analyzer);
-        IndexWriter indexWriter = new IndexWriter(directory, config);
-        File[] files = new File(dataDirectory).listFiles();
-        for (int i = 0; i < files.length; i++) {
-            // ÎÄ¼şÊÇµÚ¼¸¸ö
-            System.out.println("ÕâÊÇµÚ" + i + "¸öÎÄ¼ş----------------");
-            // ÎÄ¼şµÄÍêÕûÂ·¾¶
-            System.out.println("ÍêÕûÂ·¾¶£º" + files[i].toString());
-            // »ñÈ¡ÎÄ¼şÃû³Æ
-            String fileName = files[i].getName();
-            // »ñÈ¡ÎÄ¼şºó×ºÃû£¬½«Æä×÷ÎªÎÄ¼şÀàĞÍ
-            String fileType = fileName.substring(fileName.lastIndexOf(".") + 1,
-                    fileName.length()).toLowerCase();
-            // ÎÄ¼şÃû³Æ
-            System.out.println("ÎÄ¼şÃû³Æ£º" + fileName);
-            // ÎÄ¼şÀàĞÍ
-            System.out.println("ÎÄ¼şÀàĞÍ£º" + fileType);
-
-            Document doc = new Document();
-
-            // String fileCode = FileType.getFileType(files[i].toString());
-            // ²é¿´¸÷¸öÎÄ¼şµÄÎÄ¼şÍ·±ê¼ÇµÄÀàĞÍ
-            // System.out.println("fileCode=" + fileCode);
-
-            InputStream in = new FileInputStream(files[i]);
+            
+			InputStream in = new FileInputStream(file);
             InputStreamReader reader = null;
-
+            
             if (fileType != null && !fileType.equals("")) {
 
                 if (fileType.equals("doc")) {
-                    // »ñÈ¡docµÄwordÎÄµµ
+                    // è·å–docçš„wordæ–‡æ¡£
                     WordExtractor wordExtractor = new WordExtractor(in);
-                    // ´´½¨Field¶ÔÏó£¬²¢·ÅÈëdoc¶ÔÏóÖĞ
-                    // FieldµÄ¸÷¸ö×Ö¶Îº¬ÒåÈçÏÂ£º
-                    // µÚ1¸ö²ÎÊıÊÇÉèÖÃfieldµÄname£¬
-                    // µÚ2¸ö²ÎÊıÊÇvalue£¬valueÖµ¿ÉÒÔÊÇÎÄ±¾£¨StringÀàĞÍ£¬ReaderÀàĞÍ»òÕßÊÇÔ¤·ÖÏíµÄTokenStream£©,
-                    // ¶ş½øÖÆ£¨byet[]£©, »òÕßÊÇÊı×Ö£¨Ò»¸ö NumberÀàĞÍ£©
-                    // µÚ3¸ö²ÎÊıÊÇField.Store£¬Ñ¡ÔñÊÇ·ñ´æ´¢£¬Èç¹û´æ´¢µÄ»°ÔÚ¼ìË÷µÄÊ±ºò¿ÉÒÔ·µ»ØÖµ
-                    // µÚ4¸ö²ÎÊıÊÇField.Index£¬ÓÃÀ´ÉèÖÃË÷Òı·½Ê½
-                    doc.add(new Field("contents", wordExtractor.getText(),
-                            Field.Store.YES, Field.Index.ANALYZED));
-                    // ¹Ø±ÕÎÄµµ
                     
-                    System.out.println("×¢Òâ£ºÒÑÎªÎÄ¼ş¡°" + fileName + "¡±´´½¨ÁËË÷Òı");
+                    String content = wordExtractor.getText();
+                    Field fileContentField = new TextField("file_content", content, Store.YES);
+                    
+                    document.add(fileContentField);
+                    wordExtractor.close();
+                    System.out.println("æ³¨æ„ï¼šå·²ä¸ºæ–‡ä»¶â€œ" + file_name + "â€åˆ›å»ºäº†ç´¢å¼•");
 
                 } else if (fileType.equals("docx")) {
-                    // »ñÈ¡docxµÄwordÎÄµµ
+                    // è·å–docxçš„wordæ–‡æ¡£
                     XWPFWordExtractor xwpfWordExtractor = new XWPFWordExtractor(
                             new XWPFDocument(in));
-                    // ´´½¨Field¶ÔÏó£¬²¢·ÅÈëdoc¶ÔÏóÖĞ
-                    doc.add(new Field("contents", xwpfWordExtractor.getText(),
-                            Field.Store.YES, Field.Index.ANALYZED));
-                    // ¹Ø±ÕÎÄµµ
+                    // åˆ›å»ºFieldå¯¹è±¡ï¼Œå¹¶æ”¾å…¥docå¯¹è±¡ä¸­
+                    String content = xwpfWordExtractor.getText();
+                    //content = content.substring(0, 100);
+                    Field fileContentField = new TextField("file_content", content, Store.YES);
+                    document.add(fileContentField);
+                    // å…³é—­æ–‡æ¡£
                     xwpfWordExtractor.close();
-                    System.out.println("×¢Òâ£ºÒÑÎªÎÄ¼ş¡°" + fileName + "¡±´´½¨ÁËË÷Òı");
+                    System.out.println("æ³¨æ„ï¼šå·²ä¸ºæ–‡ä»¶â€œ" + file_name + "â€åˆ›å»ºäº†ç´¢å¼•");
 
                 } else if (fileType.equals("pdf")) {
-                    // »ñÈ¡pdfÎÄµµ
-                    PDFParser parser = new PDFParser(in);
+                    // è·å–pdfæ–‡æ¡£
+                	//æ–¹æ³•ä¸€ï¼š
+                	/**
+                    InputStream input = null;
+                    input = new FileInputStream( pdfFile );
+                    //åŠ è½½ pdf æ–‡æ¡£
+                    PDFParser parser = new PDFParser(new RandomAccessBuffer(input));
                     parser.parse();
-                    PDDocument pdDocument = parser.getPDDocument();
+                    document = parser.getPDDocument();
+                    **/
+                	//æ–¹æ³•äºŒï¼š
+                    PDDocument pdDocument = PDDocument.load(file);
+                    // è·å–é¡µç 
+                    int pages = pdDocument.getNumberOfPages();
+                    //è¯»å–æ–‡æœ¬å†…å®¹
                     PDFTextStripper stripper = new PDFTextStripper();
-                    // ´´½¨Field¶ÔÏó£¬²¢·ÅÈëdoc¶ÔÏóÖĞ
-                    doc.add(new Field("contents", stripper.getText(pdDocument),
-                            Field.Store.NO, Field.Index.ANALYZED));
-                    // ¹Ø±ÕÎÄµµ
+                    // è®¾ç½®æŒ‰é¡ºåºè¾“å‡º
+                    stripper.setSortByPosition(true);
+                    stripper.setStartPage(1);
+                    stripper.setEndPage(pages);
+                    String content = stripper.getText(pdDocument);
+                    //content = content.substring(0, 100);
+                    // åˆ›å»ºFieldå¯¹è±¡ï¼Œå¹¶æ”¾å…¥docå¯¹è±¡ä¸­
+                    Field fileContentField = new TextField("file_content", content, Store.YES);
+                    document.add(fileContentField);
+                    // å…³é—­æ–‡æ¡£
                     pdDocument.close();
-                    System.out.println("×¢Òâ£ºÒÑÎªÎÄ¼ş¡°" + fileName + "¡±´´½¨ÁËË÷Òı");
+                    System.out.println("æ³¨æ„ï¼šå·²ä¸ºæ–‡ä»¶â€œ" + file_name + "â€åˆ›å»ºäº†ç´¢å¼•");
 
                 } else if (fileType.equals("txt")) {
-                    // ½¨Á¢Ò»¸öÊäÈëÁ÷¶ÔÏóreader  
+                    // å»ºç«‹ä¸€ä¸ªè¾“å…¥æµå¯¹è±¡reader  
                     reader = new InputStreamReader(in); 
-                    // ½¨Á¢Ò»¸ö¶ÔÏó£¬Ëü°ÑÎÄ¼şÄÚÈİ×ª³É¼ÆËã»úÄÜ¶Á¶®µÄÓïÑÔ
+                    // å»ºç«‹ä¸€ä¸ªå¯¹è±¡ï¼Œå®ƒæŠŠæ–‡ä»¶å†…å®¹è½¬æˆè®¡ç®—æœºèƒ½è¯»æ‡‚çš„è¯­è¨€
                     BufferedReader br = new BufferedReader(reader);   
-                    String txtFile = "";
+                    String content = "";
                     String line = null;
-
                     while ((line = br.readLine()) != null) {  
-                        // Ò»´Î¶ÁÈëÒ»ĞĞÊı¾İ
-                        txtFile += line;   
+                        // ä¸€æ¬¡è¯»å…¥ä¸€è¡Œæ•°æ®
+                        content += line;   
                     }  
-                    // ´´½¨Field¶ÔÏó£¬²¢·ÅÈëdoc¶ÔÏóÖĞ
-                    doc.add(new Field("contents", txtFile, Field.Store.NO,
-                            Field.Index.ANALYZED));
-                    System.out.println("×¢Òâ£ºÒÑÎªÎÄ¼ş¡°" + fileName + "¡±´´½¨ÁËË÷Òı");
-
+                    // åˆ›å»ºFieldå¯¹è±¡ï¼Œå¹¶æ”¾å…¥docå¯¹è±¡ä¸­
+                    //content = content.substring(0, 100);
+                    Field fileContentField = new TextField("file_content", content, Store.YES);
+                    document.add(fileContentField);
+                    br.close();
+                    System.out.println("æ³¨æ„ï¼šå·²ä¸ºæ–‡ä»¶â€œ" + file_name + "â€åˆ›å»ºäº†ç´¢å¼•");
                 } else {
 
-                    System.out.println();
+                    System.out.println("éæŒ‡å®šæ–‡ä»¶");
                     continue;
 
                 }
 
             }
-            // ´´½¨ÎÄ¼şÃûµÄÓò£¬²¢·ÅÈëdoc¶ÔÏóÖĞ
-            doc.add(new Field("filename", files[i].getName(), Field.Store.YES,
-                    Field.Index.NOT_ANALYZED));
-            // ´´½¨Ê±¼äµÄÓò£¬²¢·ÅÈëdoc¶ÔÏóÖĞ
-            doc.add(new Field("indexDate", DateTools.dateToString(new Date(),
-                    DateTools.Resolution.DAY), Field.Store.YES,
-                    Field.Index.NOT_ANALYZED));
-            // Ğ´ÈëIndexWriter
-            indexWriter.addDocument(doc);
-            // »»ĞĞ
-            System.out.println();
-        }
-        // ²é¿´IndexWriterÀïÃæÓĞ¶àÉÙ¸öË÷Òı
-        System.out.println("numDocs=" + indexWriter.numDocs());
-        // ¹Ø±ÕË÷Òı
-        indexWriter.close();
+            in.close();
+			indexWriter.addDocument(document);
+		}
+		indexWriter.close();
+	}
+	public static void testSearch() throws Exception{
+		
+		Directory directory = FSDirectory.open(new File("D:\\tmp\\æ³•å¾‹æ³•è§„\\indexDirectory"));
+		//Directory directory = new RAMDirectory();
+		
+		IndexReader indexReader = DirectoryReader.open(directory);
+		
+		IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+		
+		Query query = new TermQuery(new Term("file_name","å…šæ”¿é¢†å¯¼å¹²éƒ¨"));
+		
+		TopDocs topDocs = indexSearcher.search(query, 10);
+		
+		ScoreDoc[] scoreDocs = topDocs.scoreDocs;
+		for(ScoreDoc scoreDoc:scoreDocs) {
+			int doc = scoreDoc.doc;
+			Document document = indexSearcher.doc(doc);
+			String name = document.get("file_name");
+			System.out.println(name);
+			String size = document.get("file_size");
+			System.out.println(size);
+			String path = document.get("file_path");
+			System.out.println(path);
+			//String content = document.get("file_content");
+			//System.out.println(content);
+		}
+		//åˆ›å»ºindexReader
+		indexReader.close();
+	}
+	public static void main(String[] args) throws IOException {
+        try {
+			//TextIndex();
+        	testSearch();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 
     }
 
